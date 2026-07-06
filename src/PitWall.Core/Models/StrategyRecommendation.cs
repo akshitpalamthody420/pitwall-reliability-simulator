@@ -1,0 +1,25 @@
+namespace PitWall.Core.Models;
+
+public sealed record StrategyRecommendation(
+    string CarCode,
+    string Driver,
+    string Action,
+    string Urgency,
+    int CurrentLap,
+    string RacePhase,
+    string CurrentTyre,
+    int TyreAge,
+    double GapToLeaderSeconds,
+    string RecommendedTyre,
+    int ProjectedRejoinPosition,
+    int PositionsLostIfPit,
+    double PitLossSeconds,
+    double? GapToCarAheadSeconds,
+    double? GapToCarBehindSeconds,
+    double TyreLifePressure,
+    double UndercutScore,
+    double OvercutScore,
+    double CoverThreatScore,
+    double Confidence,
+    string Reason,
+    IReadOnlyList<string> Factors);

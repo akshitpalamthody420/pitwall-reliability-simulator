@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PitWall Reliability Simulator</title>
+    <meta
+      name="description"
+      content="A C#/.NET trackside reliability simulator with SignalR event streaming, service state machines, incidents, deployment rollback and animated race-state visualisation."
+    />
+
+    <link rel="stylesheet" href="/styles.css?v=pitwall-20260705-03" />
+  </head>
+
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">C#/.NET backend-driven reliability simulator</p>
+          <h1>PitWall Reliability Simulator</h1>
+          <p class="subhead">
+            A live trackside-style UI backed by service state machines, SignalR events,
+            SQLite event logging, pit-stop simulation and circuit-specific track maps.
+          </p>
+        </div>
+
+        <div class="status-strip">
+          <div>
+            <span>Connection</span>
+            <strong id="connectionState">Stopped</strong>
+          </div>
+          <div>
+            <span>Mode</span>
+            <strong id="modeLabel">Loading</strong>
+          </div>
+          <div>
+            <span>Lap</span>
+            <strong id="lapLabel">-</strong>
+          </div>
+          <div>
+            <span>Circuit</span>
+            <strong id="circuitLabel">Silverstone</strong>
+          </div>
+          <div>
+            <span>Source</span>
+            <strong>Backend stream</strong>
+          </div>
+        </div>
+      </header>
+
+      <main class="grid">
+        <section class="panel race-setup">
+          <div class="panel-header compact">
+            <div>
+              <h2>Race setup</h2>
+              <p>
+                Select a circuit before running the session. The renderer uses
+                circuit-specific path points, pit entry, pit exit and start/finish metadata.
+              </p>
+            </div>
+          </div>
+
+          <div class="setup-row">
+            <label class="setup-field" for="trackSelect">
+              <span>Circuit</span>
+              <select id="trackSelect">
+                <option value="silverstone">Silverstone — United Kingdom</option>
+                <option value="monza">Monza — Italy</option>
+                <option value="spa">Spa-Francorchamps — Belgium</option>
+              </select>
+            </label>
+
+            <div class="setup-actions">
+              <button id="startRaceBtn" type="button">Start race</button>
+              <button id="resetRaceBtn" type="button" class="ghost" disabled>
+                Stop / reset
+              </button>
+            </div>
+          </div>
+
+          <p id="selectedTrackMeta" class="hint">
+            Silverstone · 5.891 km · circuit-specific pit entry and exit loaded.
+          </p>
+        </section>
+
+        <section class="panel hero">
+          <div class="panel-header">
+            <div>
+              <h2>Live trackside view</h2>
+              <p>
+                Cars are drawn from backend telemetry snapshots. The selected circuit controls
+                the track shape, start/finish line and pit-stop animation path.
+              </p>
+            </div>
+
+            <div class="legend">
+              <span><i class="dot normal"></i>Normal</span>
+              <span><i class="dot timing"></i>Timing uncertain</span>
+              <span><i class="dot failed"></i>Strategy unavailable</span>
+              <span><i class="dot tyre"></i>Tyre risk</span>
+              <span><i class="dot pit"></i>Pit stop</span>
+            </div>
+          </div>
+
+          <div class="track-layout">
+            <canvas
+              id="trackCanvas"
+              width="960"
+              height="560"
+              aria-label="Animated race track"
+            ></canvas>
+
+            <aside id="driverCard" class="driver-card">
+              <h3>Selected car</h3>
+              <p class="muted">Start the race, then click a moving car or a timing row.</p>
+            </aside>
+          </div>
+
+          <div class="button-row driver-actions">
+            <button id="pitSelectedBtn" type="button">Pit selected car</button>
+            <span class="hint">
+              Pit stop queues the selected car, waits for pit entry, services it in the pit box,
+              then releases it from pit exit.
+            </span>
+          </div>
+        </section>
+
+        <section class="panel timing">
+          <div class="panel-header compact">
+            <div>
+              <h2>Timing tower</h2>
+              <p>Updated from the same backend snapshot.</p>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>P</th>
+                  <th>Car</th>
+                  <th>Gap to leader</th>
+                  <th>Tyre</th>
+                  <th>Age</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="timingBody">
+                <tr>
+                  <td colspan="6">Start the race to load live timing.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel strategy">
+          <div class="panel-header compact">
+            <div>
+              <h2>Strategy recommendations</h2>
+              <p>Backend-generated pit and tyre advice for Alpine cars.</p>
+            </div>
+          </div>
+
+          <div id="strategyRecommendations" class="strategy-list">
+            Start the race to load strategy recommendations.
+          </div>
+        </section>
+
+        <section class="panel controls">
+          <div class="panel-header compact">
+            <div>
+              <h2>Fault injection</h2>
+              <p>Buttons call C# endpoints; the frontend does not fake the incident.</p>
+            </div>
+          </div>
+
+          <div class="button-grid">
+            <button type="button" data-action="/api/failures/telemetry-delay">
+              Inject telemetry delay
+            </button>
+            <button type="button" data-action="/api/failures/timing-packet-loss">
+              Drop timing packets
+            </button>
+            <button type="button" data-action="/api/failures/strategy-engine-down" class="danger">
+              Fail strategy engine
+            </button>
+            <button type="button" data-action="/api/recover" class="safe">
+              Recover services
+            </button>
+          </div>
+        </section>
+
+        <section class="panel services">
+          <div class="panel-header compact">
+            <div>
+              <h2>Service health</h2>
+              <p>State transitions are owned by the backend.</p>
+            </div>
+          </div>
+
+          <div id="serviceGrid" class="service-grid"></div>
+        </section>
+
+        <section class="panel incidents">
+          <div class="panel-header compact">
+            <div>
+              <h2>Incidents</h2>
+              <p>Created and resolved by the state machine.</p>
+            </div>
+          </div>
+
+          <div id="incidentList" class="incident-list empty">No incidents yet.</div>
+        </section>
+
+        <section class="panel deploy">
+          <div class="panel-header compact">
+            <div>
+              <h2>Deployment workflow</h2>
+              <p>Canary, promote and rollback are validated server-side.</p>
+            </div>
+          </div>
+
+          <div id="deploymentCard" class="deployment-card">
+            Loading deployment state...
+          </div>
+
+          <div class="button-row">
+            <button type="button" data-action="/api/deployments/canary">Start canary</button>
+            <button type="button" data-action="/api/deployments/promote">Promote</button>
+            <button type="button" data-action="/api/deployments/rollback" class="danger ghost">
+              Rollback
+            </button>
+          </div>
+        </section>
+
+        <section class="panel events">
+          <div class="panel-header compact">
+            <div>
+              <h2>Live event log</h2>
+              <p>Recent events broadcast over SignalR and persisted in SQLite.</p>
+            </div>
+          </div>
+
+          <div id="eventLog" class="event-log"></div>
+        </section>
+
+        <section class="panel report">
+          <div class="panel-header compact">
+            <div>
+              <h2>Report</h2>
+              <p>Generated from stored event history.</p>
+            </div>
+
+            <button id="reportBtn" type="button">Generate report</button>
+          </div>
+
+          <pre id="reportOutput" class="report-output">Run some failures, pit stops or deployments, then generate the report.</pre>
+        </section>
+      </main>
+    </div>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"
+      defer
+    ></script>
+    <script src="/app.js?v=pitwall-20260705-03" defer></script>
+  </body>
+</html>
