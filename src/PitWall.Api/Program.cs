@@ -228,7 +228,9 @@ app.MapGet("/api/report",
         events,
         state.GetIncidents(),
         state.GetServices(),
-        state.GetDeployment());
+        state.GetDeployment(),
+        state.GetRaceCars(),
+state.GetStrategyRecommendations());
 
     return Results.Text(markdown, "text/markdown");
 });
