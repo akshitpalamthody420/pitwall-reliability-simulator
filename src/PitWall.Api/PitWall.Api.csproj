@@ -7,4 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\PitWall.Core\PitWall.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
+  </ItemGroup>
 </Project>
