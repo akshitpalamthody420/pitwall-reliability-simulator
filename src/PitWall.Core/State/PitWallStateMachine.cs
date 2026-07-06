@@ -55,6 +55,12 @@ private sealed record DriverRaceProfile(
     double RaceCraftFactor,
     int AttackLapStart,
     int AttackLapEnd);
+private sealed record DemoCarState(
+    string Code,
+    double GapToLeaderSeconds,
+    string Tyre,
+    int TyreAge);
+
 
 private readonly Dictionary<string, DriverRaceProfile> _driverProfiles =
     new(StringComparer.OrdinalIgnoreCase)
@@ -278,7 +284,108 @@ private readonly Dictionary<string, DriverRaceProfile> _driverProfiles =
             .ToList();
     }
 }
+public async Task<OperationResult> ForceDemoScenarioAsync(
+    string scenario,
+    CancellationToken ct = default)
+{
+    OperationsEvent evt;
+    string scenarioName;
 
+    lock (_sync)
+    {
+        var normalized = scenario.Trim().ToLowerInvariant();
+
+        _raceClock.Restart();
+        _lastRaceModelUpdate = DateTimeOffset.UtcNow;
+
+        scenarioName = normalized switch
+        {
+            "undercut" => "Force undercut scenario",
+            "overcut" => "Force overcut scenario",
+            "cover-rival" => "Force cover-rival scenario",
+            "bad-pit-window" => "Force bad pit-window scenario",
+            "tyre-cliff" => "Force tyre-cliff scenario",
+            _ => throw new InvalidOperationException($"Unknown demo scenario '{scenario}'.")
+        };
+
+        var demoCars = normalized switch
+        {
+            "undercut" => new[]
+            {
+                new DemoCarState("RBR", 0.0, "Medium", 8),
+                new DemoCarState("FER", 1.8, "Medium", 10),
+                new DemoCarState("ALP1", 3.2, "Medium", 14),
+                new DemoCarState("ALP2", 30.0, "Hard", 8),
+                new DemoCarState("MCL", 32.0, "Hard", 6),
+                new DemoCarState("MER", 34.0, "Medium", 9),
+                new DemoCarState("WIL", 36.0, "Soft", 10),
+                new DemoCarState("AST", 38.0, "Hard", 7)
+            },
+
+            "overcut" => new[]
+            {
+                new DemoCarState("RBR", 0.0, "Soft", 11),
+                new DemoCarState("ALP1", 2.0, "Hard", 13),
+                new DemoCarState("FER", 26.0, "Medium", 9),
+                new DemoCarState("ALP2", 28.0, "Hard", 8),
+                new DemoCarState("MCL", 31.0, "Hard", 7),
+                new DemoCarState("MER", 34.0, "Medium", 8),
+                new DemoCarState("WIL", 37.0, "Soft", 10),
+                new DemoCarState("AST", 40.0, "Hard", 8)
+            },
+
+            "cover-rival" => new[]
+            {
+                new DemoCarState("RBR", 0.0, "Medium", 8),
+                new DemoCarState("ALP1", 2.0, "Medium", 14),
+                new DemoCarState("MER", 3.0, "Medium", 12),
+                new DemoCarState("FER", 28.0, "Medium", 9),
+                new DemoCarState("ALP2", 31.0, "Hard", 8),
+                new DemoCarState("MCL", 34.0, "Hard", 7),
+                new DemoCarState("WIL", 37.0, "Soft", 10),
+                new DemoCarState("AST", 40.0, "Hard", 8)
+            },
+
+            "bad-pit-window" => new[]
+            {
+                new DemoCarState("RBR", 0.0, "Medium", 8),
+                new DemoCarState("FER", 1.0, "Medium", 9),
+                new DemoCarState("MCL", 2.0, "Hard", 7),
+                new DemoCarState("MER", 3.0, "Medium", 10),
+                new DemoCarState("ALP1", 4.0, "Medium", 18),
+                new DemoCarState("ALP2", 5.0, "Hard", 9),
+                new DemoCarState("WIL", 6.0, "Soft", 10),
+                new DemoCarState("AST", 7.0, "Hard", 8)
+            },
+
+            "tyre-cliff" => new[]
+            {
+                new DemoCarState("RBR", 0.0, "Medium", 8),
+                new DemoCarState("ALP1", 3.0, "Medium", 19),
+                new DemoCarState("FER", 30.0, "Medium", 8),
+                new DemoCarState("ALP2", 32.0, "Hard", 8),
+                new DemoCarState("MCL", 34.0, "Hard", 7),
+                new DemoCarState("MER", 36.0, "Medium", 8),
+                new DemoCarState("WIL", 38.0, "Soft", 10),
+                new DemoCarState("AST", 40.0, "Hard", 8)
+            },
+
+            _ => throw new InvalidOperationException($"Unknown demo scenario '{scenario}'.")
+        };
+
+        ApplyDemoRaceState(demoCars);
+    }
+
+    evt = await _eventStore.AppendEventAsync(
+        EventType.RaceSnapshotUpdated,
+        "Demo Scenario",
+        null,
+        scenarioName,
+        $"Demo scenario forced: {scenarioName}",
+        ct);
+
+    return Result(new[] { evt }, Array.Empty<Alert>());
+}
 private sealed record StrategyContext(
     RaceCarSnapshot Car,
     RaceCarSnapshot? CarAhead,
@@ -1695,7 +1802,34 @@ private static double EstimateGapSeconds(double aheadDistanceLaps, double behind
         var normalized = value % 1.0;
         return normalized < 0 ? normalized + 1.0 : normalized;
     }
+private void ApplyDemoRaceState(IReadOnlyList<DemoCarState> demoCars)
+{
+    const double leaderDistanceLaps = 18.25;
 
+    foreach (var demoCar in demoCars)
+    {
+        if (!_carRuntime.TryGetValue(demoCar.Code, out var runtime))
+        {
+            continue;
+        }
+
+        runtime.Tyre = demoCar.Tyre;
+        runtime.PitUntil = null;
+        runtime.GapPenaltySeconds = 0;
+
+        runtime.DistanceLaps = Math.Max(
+            0,
+            leaderDistanceLaps - demoCar.GapToLeaderSeconds / ReferenceLapTimeSeconds);
+
+        var currentLap = Math.Max(1, (int)Math.Floor(runtime.DistanceLaps) + 1);
+
+        runtime.LastPitLap = Math.Max(
+            1,
+            currentLap - Math.Max(0, demoCar.TyreAge));
+
+        runtime.LastSpeedKph = 240;
+    }
+}
     private static string NextTyre(string tyre)
     {
         return tyre.ToLowerInvariant() switch
