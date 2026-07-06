@@ -1,4 +1,5 @@
 using Xunit;
+using System.Linq;
 using PitWall.Core.Models;
 using PitWall.Core.State;
 using PitWall.Core.Storage;
@@ -221,4 +222,101 @@ public sealed class PitWallStateMachineBehaviorTests
         Assert.Contains(result.Alerts, alert =>
             alert.Title == "Telemetry delay");
     }
+    [Theory]
+[InlineData("undercut", "UNDERCUT")]
+[InlineData("overcut", "OVERCUT")]
+[InlineData("cover-rival", "COVER RIVAL")]
+[InlineData("bad-pit-window", "EXTEND STINT")]
+[InlineData("tyre-cliff", "PIT NOW")]
+public async Task DemoScenarios_ForceExpectedAlp1Recommendation(
+    string scenario,
+    string expectedAction)
+{
+    var state = CreateStateMachine();
+
+    await state.ForceDemoScenarioAsync(scenario);
+
+    var recommendations = state.GetStrategyRecommendations();
+
+    var alp1 = recommendations.Single(recommendation =>
+        recommendation.CarCode == "ALP1");
+
+    Assert.Equal(expectedAction, alp1.Action);
+}
+
+[Fact]
+public async Task DemoScenario_RejectsUnknownScenario()
+{
+    var state = CreateStateMachine();
+
+    var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+        () => state.ForceDemoScenarioAsync("nonsense"));
+
+    Assert.Contains("Unknown demo scenario", ex.Message);
+}
+
+[Fact]
+public async Task StrategyFailure_ReturnsNoAdviceForAlpineCars()
+{
+    var state = CreateStateMachine();
+
+    await state.FailStrategyEngineAsync();
+
+    var recommendations = state.GetStrategyRecommendations();
+
+    Assert.All(recommendations, recommendation =>
+    {
+        Assert.Equal("NO ADVICE", recommendation.Action);
+        Assert.Equal("Unavailable", recommendation.Urgency);
+    });
+}
+
+[Fact]
+public async Task PitCar_ChangesTyreAndAffectsRacePositionOrGap()
+{
+    var state = CreateStateMachine();
+
+    await state.ForceDemoScenarioAsync("tyre-cliff");
+
+    var before = state.GetRaceCars()
+        .Single(car => car.Code == "ALP1");
+
+    await state.PitCarAsync("ALP1");
+
+    await Task.Delay(1200);
+
+    var after = state.GetRaceCars()
+        .Single(car => car.Code == "ALP1");
+
+    Assert.NotEqual(before.Tyre, after.Tyre);
+
+    Assert.True(
+        after.Position > before.Position ||
+        after.GapToLeaderSeconds > before.GapToLeaderSeconds);
+}
+
+[Fact]
+public async Task Rollback_CannotRunBeforeCanaryOrPromotion()
+{
+    var state = CreateStateMachine();
+
+    var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+        () => state.RollbackDeploymentAsync());
+
+    Assert.Contains("Cannot rollback", ex.Message);
+}
+
+[Fact]
+public async Task Rollback_WorksAfterCanary()
+{
+    var state = CreateStateMachine();
+
+    await state.StartCanaryAsync();
+    await state.RollbackDeploymentAsync();
+
+    var deployment = state.GetDeployment();
+
+    Assert.Equal(DeploymentStatus.RolledBack, deployment.Status);
+    Assert.Equal(0, deployment.CanaryPercent);
+}
 }

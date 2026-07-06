@@ -347,16 +347,16 @@ public async Task<OperationResult> ForceDemoScenarioAsync(
             },
 
             "bad-pit-window" => new[]
-            {
-                new DemoCarState("RBR", 0.0, "Medium", 8),
-                new DemoCarState("FER", 1.0, "Medium", 9),
-                new DemoCarState("MCL", 2.0, "Hard", 7),
-                new DemoCarState("MER", 3.0, "Medium", 10),
-                new DemoCarState("ALP1", 4.0, "Medium", 18),
-                new DemoCarState("ALP2", 5.0, "Hard", 9),
-                new DemoCarState("WIL", 6.0, "Soft", 10),
-                new DemoCarState("AST", 7.0, "Hard", 8)
-            },
+{
+    new DemoCarState("RBR", 0.0, "Medium", 8),
+    new DemoCarState("FER", 3.0, "Medium", 9),
+    new DemoCarState("MCL", 6.0, "Hard", 7),
+    new DemoCarState("ALP1", 12.0, "Medium", 16),
+    new DemoCarState("MER", 18.0, "Medium", 10),
+    new DemoCarState("ALP2", 22.0, "Hard", 9),
+    new DemoCarState("WIL", 26.0, "Soft", 10),
+    new DemoCarState("AST", 30.0, "Hard", 8)
+},
 
             "tyre-cliff" => new[]
             {

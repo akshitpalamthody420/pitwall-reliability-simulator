@@ -246,3 +246,55 @@ button.ghost { background: transparent; }
   background: rgba(255, 92, 122, 0.18);
   color: #ff8fa3;
 }
+.demo-scenarios-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.demo-scenarios-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+}
+
+.demo-scenarios-title strong {
+  font-size: 0.86rem;
+}
+
+.demo-scenarios-title span {
+  font-size: 0.74rem;
+  opacity: 0.68;
+}
+
+.demo-scenario-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.demo-scenario-buttons button {
+  padding: 7px 10px;
+  min-height: 0;
+  font-size: 0.78rem;
+  border-radius: 999px;
+}
+
+@media (max-width: 760px) {
+  .demo-scenarios-compact {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .demo-scenario-buttons {
+    justify-content: flex-start;
+  }
+}

@@ -149,7 +149,33 @@ strategyRecommendationsLoading: false,
   mode: 'Loading',
   lap: '-'
 };
-
+const DEMO_SCENARIO_EXPLAINERS = {
+  undercut: {
+    title: 'UNDERCUT',
+    body: 'ALP1 is close behind a rival. Pit now to attack the car ahead with fresher tyres.',
+    watch: 'Watch ALP1 gap to car ahead, pit loss, and projected rejoin position.'
+  },
+  overcut: {
+    title: 'OVERCUT',
+    body: 'ALP1 stays out because its current tyres can still perform while the car ahead may lose time.',
+    watch: 'Watch tyre age, gap to car ahead, and whether staying out keeps track position.'
+  },
+  'cover-rival': {
+    title: 'COVER RIVAL',
+    body: 'A rival behind ALP1 is close enough to threaten an undercut. Pit now to defend.',
+    watch: 'Watch ALP1 gap to the car behind and the cover threat score.'
+  },
+  'bad-pit-window': {
+    title: 'EXTEND STINT',
+    body: 'ALP1 tyres are poor, but pitting now would rejoin in traffic. Stay out temporarily.',
+    watch: 'Watch projected rejoin position and positions lost if pit.'
+  },
+  'tyre-cliff': {
+    title: 'PIT NOW',
+    body: 'ALP1 has reached the tyre cliff. Staying out costs more than the pit loss.',
+    watch: 'Watch tyre pressure, tyre age, and urgency.'
+  }
+};
 const el = id => document.getElementById(id);
 const canvas = el('trackCanvas');
 const ctx = canvas.getContext('2d');
@@ -475,7 +501,15 @@ return payload;
 }
 
 document.querySelectorAll('[data-action]').forEach(button => {
-  button.addEventListener('click', () => postAction(button.dataset.action));
+  button.addEventListener('click', () => {
+    const demoScenario = button.dataset.demoScenario;
+
+    if (demoScenario) {
+      renderScenarioExplainer(demoScenario);
+    }
+
+    postAction(button.dataset.action);
+  });
 });
 
 const trackSelect = el('trackSelect');
@@ -851,7 +885,29 @@ async function loadStrategyRecommendations(force = false) {
     state.strategyRecommendationsLoading = false;
   }
 }
+function renderScenarioExplainer(scenarioKey) {
+  const panel = el('scenarioExplainer');
 
+  if (!panel) {
+    return;
+  }
+
+  const scenario = DEMO_SCENARIO_EXPLAINERS[scenarioKey];
+
+  if (!scenario) {
+    panel.innerHTML = `
+      <strong>No demo scenario selected</strong>
+      <span>Use the compact scenario buttons to force a backend strategy state.</span>
+    `;
+    return;
+  }
+
+  panel.innerHTML = `
+    <strong>${scenario.title}</strong>
+    <span>${scenario.body}</span>
+    <small>${scenario.watch}</small>
+  `;
+}
 function renderStrategyRecommendations(recommendations) {
   const panel = el('strategyRecommendations');
 

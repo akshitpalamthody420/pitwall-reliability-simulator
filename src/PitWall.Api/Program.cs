@@ -77,7 +77,23 @@ app.MapGet("/api/events", async (SqliteEventStore store, int? limit, Cancellatio
     var events = await store.GetEventsAsync(limit ?? 250, ct);
     return Results.Ok(events);
 });
+app.MapPost("/api/demo-scenarios/{scenario}",
+    async (string scenario, PitWallStateMachine state, IHubContext<OperationsHub> hub, CancellationToken ct) =>
+{
+    try
+    {
+        var result = await state.ForceDemoScenarioAsync(scenario, ct);
 
+        await BroadcastResultAsync(hub, result, ct);
+        await hub.Clients.All.SendAsync("TelemetryUpdated", state.GetRaceCars(), ct);
+
+        return Results.Ok(result);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
 app.MapPost("/api/failures/telemetry-delay",
     async (PitWallStateMachine state, IHubContext<OperationsHub> hub, CancellationToken ct) =>
 {
